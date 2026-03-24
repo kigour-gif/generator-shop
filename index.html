@@ -1,1 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopify Prompt Architect - Expert Front-End</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
+        .step-active { border-color: #10b981; background-color: #ecfdf5; }
+        pre { white-space: pre-wrap; word-break: break-all; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
 
+    <div class="max-w-4xl mx-auto px-6 py-12">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <div class="inline-flex items-center justify-center p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 mb-6 text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.288a2 2 0 01-1.645 0l-.628-.288a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547l-1.16 1.16a2 2 0 001.414 3.414h15a2 2 0 001.414-3.414l-1.16-1.16zM6.25 8.044db" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707.707" />
+                </svg>
+            </div>
+            <h1 class="text-4xl font-extrabold tracking-tight">Shopify Prompt Architect</h1>
+            <p class="text-slate-500 mt-3 text-lg">Générez vos prompts de création de checkout et vos sous-prompts dynamiques.</p>
+        </header>
+
+        <!-- Wizard Logic -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            
+            <!-- Question Sidebar -->
+            <div class="md:col-span-1 space-y-4">
+                <div id="stepList" class="space-y-2">
+                    <!-- Step navigation injected here -->
+                </div>
+            </div>
+
+            <!-- Main Input Area -->
+            <div class="md:col-span-2">
+                <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-8 border border-slate-100 min-h-[400px] flex flex-col">
+                    <div id="wizardContent" class="flex-1">
+                        <!-- Questions injected here -->
+                    </div>
+
+                    <div class="mt-8 pt-6 border-t border-slate-50 flex justify-between items-center">
+                        <button id="prevBtn" class="text-slate-400 hover:text-slate-600 font-semibold px-4 py-2 hidden transition-colors">
+                            Précédent
+                        </button>
+                        <div class="flex-1"></div>
+                        <button id="nextBtn" class="bg-indigo-600 text-white hover:bg-indigo-700 px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-100 disabled:opacity-50">
+                            Continuer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Result View (Hidden initially) -->
+        <div id="resultContainer" class="mt-12 space-y-8 hidden">
+            <!-- Results injected here -->
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full text-sm font-medium opacity-0 transition-opacity pointer-events-none z-50">
+        Copié avec succès !
+    </div>
+
+    <script>
+        const state = {
+            step: 0,
+            answers: {
+                domain: '',
+                mainVariantId: '',
+                otherVariants: '',
+                discounts: '',
+                emailEnabled: false,
+                addressEnabled: false
+            }
+        };
+
+        const questions = [
+            {
+                id: 'domain',
+                title: 'Domaine Shopify',
+                q: 'Quel est ton domaine Shopify ?',
+                desc: '⚠️ Vérifie que ton domaine est actif et connecté.',
+                placeholder: 'ma-boutique.myshopify.com',
+                type: 'text'
+            },
+            {
+                id: 'mainVariantId',
+                title: 'Produit Principal',
+                q: 'Donne un exemple de variant ID produit',
+                desc: 'L\'identifiant numérique ou texte de votre variante star.',
+                placeholder: '4561237890',
+                type: 'text'
+            },
+            {
+                id: 'otherVariants',
+                title: 'Variantes',
+                q: 'Autres variant IDs disponibles (optionnel)',
+                desc: 'Séparez les IDs par des virgules.',
+                placeholder: '111, 222, 333',
+                type: 'textarea'
+            },
+            {
+                id: 'discounts',
+                title: 'Codes Promo',
+                q: 'Codes promo disponibles (optionnel)',
+                desc: 'Séparez les codes par des virgules.',
+                placeholder: 'SOLDES, BIENVENUE',
+                type: 'textarea'
+            },
+            {
+                id: 'options',
+                title: 'Pré-remplissage',
+                q: 'Quelles options activer ?',
+                desc: 'Choisissez les données à automatiser dans le lien.',
+                type: 'checkboxes',
+                fields: [
+                    { id: 'emailEnabled', label: 'Activer le pré-remplissage email' },
+                    { id: 'addressEnabled', label: 'Activer le pré-remplissage adresse' }
+                ]
+            }
+        ];
+
+        function init() {
+            renderNav();
+            renderQuestion();
+        }
+
+        function renderNav() {
+            const list = document.getElementById('stepList');
+            list.innerHTML = questions.map((q, i) => `
+                <div class="flex items-center p-3 rounded-xl border-2 transition-all cursor-default ${i === state.step ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-transparent text-slate-400'}">
+                    <span class="w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 ${i < state.step ? 'bg-indigo-500 text-white' : i === state.step ? 'bg-indigo-600 text-white' : 'bg-slate-200'}">
+                        ${i < state.step ? '✓' : i + 1}
+                    </span>
+                    <span class="text-sm font-semibold">${q.title}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderQuestion() {
+            const qData = questions[state.step];
+            const container = document.getElementById('wizardContent');
+            
+            let inputHtml = '';
+            if (qData.type === 'text') {
+                inputHtml = `<input type="text" id="ans_${qData.id}" value="${state.answers[qData.id]}" placeholder="${qData.placeholder}" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none transition-all text-lg">`;
+            } else if (qData.type === 'textarea') {
+                inputHtml = `<textarea id="ans_${qData.id}" placeholder="${qData.placeholder}" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none transition-all text-lg h-32">${state.answers[qData.id]}</textarea>`;
+            } else if (qData.type === 'checkboxes') {
+                inputHtml = `<div class="space-y-4">
+                    ${qData.fields.map(f => `
+                        <label class="flex items-center p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 cursor-pointer hover:bg-slate-100 transition-all">
+                            <input type="checkbox" id="ans_${f.id}" ${state.answers[f.id] ? 'checked' : ''} class="w-5 h-5 text-indigo-600 rounded">
+                            <span class="ml-4 font-medium text-slate-700">${f.label}</span>
+                        </label>
+                    `).join('')}
+                </div>`;
+            }
+
+            container.innerHTML = `
+                <div class="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <h2 class="text-2xl font-bold text-slate-900">${qData.q}</h2>
+                    <p class="text-slate-500 mt-2 mb-8">${qData.desc}</p>
+                    ${inputHtml}
+                </div>
+            `;
+
+            document.getElementById('prevBtn').classList.toggle('hidden', state.step === 0);
+            document.getElementById('nextBtn').innerText = state.step === questions.length - 1 ? 'Générer tout' : 'Continuer';
+        }
+
+        document.getElementById('nextBtn').onclick = () => {
+            const qData = questions[state.step];
+            if (qData.type === 'checkboxes') {
+                qData.fields.forEach(f => state.answers[f.id] = document.getElementById(`ans_${f.id}`).checked);
+            } else {
+                state.answers[qData.id] = document.getElementById(`ans_${qData.id}`).value;
+            }
+
+            if (state.step < questions.length - 1) {
+                state.step++;
+                renderNav();
+                renderQuestion();
+            } else {
+                finalize();
+            }
+        };
+
+        document.getElementById('prevBtn').onclick = () => {
+            if (state.step > 0) {
+                state.step--;
+                renderNav();
+                renderQuestion();
+            }
+        };
+
+        function finalize() {
+            const results = document.getElementById('resultContainer');
+            const data = state.answers;
+            
+            // Domain cleaning
+            const domain = data.domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+            const allVariants = [data.mainVariantId, ...data.otherVariants.split(',').map(v => v.trim()).filter(v => v)].join(', ');
+            const discounts = data.discounts || 'Aucun';
+            
+            // 1. Example Link
+            let exampleUrl = `https://${domain}/cart/${data.mainVariantId}:1`;
+            const params = [];
+            if (data.discounts) params.push(`discount=${data.discounts.split(',')[0].trim()}`);
+            if (data.emailEnabled) params.push('checkout[email]=example@email.com');
+            if (params.length) exampleUrl += '?' + params.join('&');
+
+            // 2. Main Prompt
+            const mainPrompt = `Tu es un développeur front-end expert.
+Crée une page HTML + JavaScript permettant de générer dynamiquement des liens de checkout Shopify.
+
+CONFIGURATION :
+Domaine : ${domain}
+Variants disponibles : ${allVariants}
+Codes promo : ${discounts}
+Email activé : ${data.emailEnabled ? 'OUI' : 'NON'}
+Adresse activée : ${data.addressEnabled ? 'OUI' : 'NON'}
+
+OBJECTIF :
+Créer une interface permettant :
+- ajout de produits (variant_id + quantité)
+- gestion panier dynamique
+- génération d’URL Shopify
+- redirection vers checkout
+
+FORMAT URL :
+https://${domain}/cart/{variant}:{qty},{variant}:{qty}
+
+PARAMÈTRES :
+discount
+checkout[email]
+checkout[shipping_address][...]
+
+LOGIQUE :
+construire panier JS
+utiliser .map() + .join(',')
+encoder les valeurs
+gérer ? et & correctement`;
+
+            // 3. Sub-Prompt
+            const subPrompt = `const SHOPIFY_CHECKOUT_PROMPT = \`
+Tu es une IA spécialisée dans la génération de liens checkout Shopify.
+
+Ton objectif est de générer une URL de checkout à partir d’un panier dynamique.
+
+---
+
+# CONFIGURATION
+
+Domaine : ${domain}
+Variants disponibles : ${allVariants}
+Codes promo autorisés : ${discounts}
+
+---
+
+# RÈGLES
+
+- Utiliser uniquement des variant_id
+- Format : /cart/variant:qty,variant:qty
+- Paramètres optionnels : discount, checkout[email], checkout[shipping_address]
+
+---
+
+# LOGIQUE
+
+1. Lire un panier de type : [{ variant_id, quantity }]
+2. Générer : variant_id:qty,variant_id:qty
+3. Construire URL finale : https://${domain}/cart/...
+4. Ajouter paramètres si présents
+
+---
+
+# OUTPUT
+
+Retourner uniquement l’URL finale
+
+---
+
+# EXEMPLE
+
+Panier : [{ "variant_id": "${data.mainVariantId}", "quantity": 1 }]
+Résultat : https://${domain}/cart/${data.mainVariantId}:1
+\`;`;
+
+            results.innerHTML = `
+                <div class="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                    <!-- Example -->
+                    <div class="bg-indigo-600 rounded-3xl p-8 text-white shadow-xl">
+                        <h3 class="text-xl font-bold mb-4 flex items-center">
+                            <span class="mr-2">🔗</span> Lien Checkout Exemple
+                        </h3>
+                        <div class="bg-indigo-900/40 p-4 rounded-xl font-mono text-sm break-all flex justify-between items-center">
+                            <span>${exampleUrl}</span>
+                            <button onclick="copyText('${exampleUrl}')" class="ml-4 hover:text-indigo-200"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg></button>
+                        </div>
+                    </div>
+
+                    <!-- Main Prompt -->
+                    <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-slate-900 flex items-center">
+                                <span class="mr-2">🧠</span> Prompt Principal (Création Site)
+                            </h3>
+                            <button onclick="copyElement('mainPromptPre')" class="text-slate-400 hover:text-indigo-600 transition-colors">Copier</button>
+                        </div>
+                        <pre id="mainPromptPre" class="bg-slate-50 p-6 rounded-2xl text-slate-600 text-sm leading-relaxed">${mainPrompt}</pre>
+                    </div>
+
+                    <!-- Meta Prompt -->
+                    <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-slate-900 flex items-center">
+                                <span class="mr-2">🔥</span> Prompt Interne (Injected)
+                            </h3>
+                            <button onclick="copyElement('subPromptPre')" class="text-slate-400 hover:text-indigo-600 transition-colors">Copier</button>
+                        </div>
+                        <pre id="subPromptPre" class="bg-slate-900 p-6 rounded-2xl text-green-400 text-sm leading-relaxed">${subPrompt}</pre>
+                    </div>
+                </div>
+            `;
+            
+            results.classList.remove('hidden');
+            results.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function copyText(text) {
+            const el = document.createElement('textarea');
+            el.value = text;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            showToast();
+        }
+
+        function copyElement(id) {
+            const text = document.getElementById(id).innerText;
+            copyText(text);
+        }
+
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 2000);
+        }
+
+        init();
+    </script>
+</body>
+</html>
