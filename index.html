@@ -8,9 +8,9 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
-        .step-active { border-color: #10b981; background-color: #ecfdf5; }
         pre { white-space: pre-wrap; word-break: break-all; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
@@ -20,12 +20,11 @@
         <header class="text-center mb-12">
             <div class="inline-flex items-center justify-center p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 mb-6 text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.288a2 2 0 01-1.645 0l-.628-.288a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547l-1.16 1.16a2 2 0 001.414 3.414h15a2 2 0 001.414-3.414l-1.16-1.16zM6.25 8.044db" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707.707" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.288a2 2 0 01-1.645 0l-.628-.288a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547l-1.16 1.16a2 2 0 001.414 3.414h15a2 2 0 001.414-3.414l-1.16-1.16z" />
                 </svg>
             </div>
             <h1 class="text-4xl font-extrabold tracking-tight">Shopify Prompt Architect</h1>
-            <p class="text-slate-500 mt-3 text-lg">Générez vos prompts de création de checkout et vos sous-prompts dynamiques.</p>
+            <p class="text-slate-500 mt-3 text-lg">Générez des prompts de checkout avec une liste de produits dynamique.</p>
         </header>
 
         <!-- Wizard Logic -->
@@ -40,7 +39,7 @@
 
             <!-- Main Input Area -->
             <div class="md:col-span-2">
-                <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-8 border border-slate-100 min-h-[400px] flex flex-col">
+                <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-8 border border-slate-100 min-h-[450px] flex flex-col">
                     <div id="wizardContent" class="flex-1">
                         <!-- Questions injected here -->
                     </div>
@@ -74,8 +73,7 @@
             step: 0,
             answers: {
                 domain: '',
-                mainVariantId: '',
-                otherVariants: '',
+                products: [{ name: '', id: '', qty: '1' }],
                 discounts: '',
                 emailEnabled: false,
                 addressEnabled: false
@@ -87,25 +85,16 @@
                 id: 'domain',
                 title: 'Domaine Shopify',
                 q: 'Quel est ton domaine Shopify ?',
-                desc: '⚠️ Vérifie que ton domaine est actif et connecté.',
+                desc: 'Vérifie que ton domaine est actif (ex: ma-boutique.com).',
                 placeholder: 'ma-boutique.myshopify.com',
                 type: 'text'
             },
             {
-                id: 'mainVariantId',
-                title: 'Produit Principal',
-                q: 'Donne un exemple de variant ID produit',
-                desc: 'L\'identifiant numérique ou texte de votre variante star.',
-                placeholder: '4561237890',
-                type: 'text'
-            },
-            {
-                id: 'otherVariants',
-                title: 'Variantes',
-                q: 'Autres variant IDs disponibles (optionnel)',
-                desc: 'Séparez les IDs par des virgules.',
-                placeholder: '111, 222, 333',
-                type: 'textarea'
+                id: 'products',
+                title: 'Liste des Produits',
+                q: 'Ajoute tes produits et variantes',
+                desc: 'Indique le nom, l\'ID de la variante et la quantité souhaitée pour le lien d\'exemple.',
+                type: 'dynamic-list'
             },
             {
                 id: 'discounts',
@@ -145,6 +134,22 @@
             `).join('');
         }
 
+        function addProductRow() {
+            state.answers.products.push({ name: '', id: '', qty: '1' });
+            renderQuestion();
+        }
+
+        function removeProductRow(index) {
+            if (state.answers.products.length > 1) {
+                state.answers.products.splice(index, 1);
+                renderQuestion();
+            }
+        }
+
+        function updateProductValue(index, field, value) {
+            state.answers.products[index][field] = value;
+        }
+
         function renderQuestion() {
             const qData = questions[state.step];
             const container = document.getElementById('wizardContent');
@@ -163,6 +168,37 @@
                         </label>
                     `).join('')}
                 </div>`;
+            } else if (qData.type === 'dynamic-list') {
+                inputHtml = `
+                    <div class="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        ${state.answers.products.map((p, i) => `
+                            <div class="flex flex-col sm:flex-row gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group animate-fade-in">
+                                <div class="flex-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Nom Produit</label>
+                                    <input type="text" placeholder="ex: Sérum" value="${p.name}" oninput="updateProductValue(${i}, 'name', this.value)" class="w-full p-2 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 outline-none text-sm">
+                                </div>
+                                <div class="w-full sm:w-32">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Variant ID</label>
+                                    <input type="text" placeholder="ID" value="${p.id}" oninput="updateProductValue(${i}, 'id', this.value)" class="w-full p-2 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 outline-none text-sm">
+                                </div>
+                                <div class="w-full sm:w-20">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Qté</label>
+                                    <input type="number" value="${p.qty}" oninput="updateProductValue(${i}, 'qty', this.value)" class="w-full p-2 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 outline-none text-sm">
+                                </div>
+                                ${state.answers.products.length > 1 ? `
+                                    <button onclick="removeProductRow(${i})" class="sm:self-end p-2 text-slate-300 hover:text-red-500 transition-colors">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                        <button onclick="addProductRow()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-all font-bold flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                            Ajouter un produit
+                        </button>
+                    </div>
+                `;
+                nextBtn.style.display = 'block';
             }
 
             container.innerHTML = `
@@ -181,6 +217,12 @@
             const qData = questions[state.step];
             if (qData.type === 'checkboxes') {
                 qData.fields.forEach(f => state.answers[f.id] = document.getElementById(`ans_${f.id}`).checked);
+            } else if (qData.type === 'dynamic-list') {
+                // Values are already updated in state via oninput
+                if (state.answers.products.some(p => !p.id)) {
+                    alert("Veuillez remplir au moins l'ID pour chaque produit.");
+                    return;
+                }
             } else {
                 state.answers[qData.id] = document.getElementById(`ans_${qData.id}`).value;
             }
@@ -206,13 +248,16 @@
             const results = document.getElementById('resultContainer');
             const data = state.answers;
             
-            // Domain cleaning
             const domain = data.domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-            const allVariants = [data.mainVariantId, ...data.otherVariants.split(',').map(v => v.trim()).filter(v => v)].join(', ');
+            
+            // Format products for prompt
+            const productStrings = data.products.map(p => `${p.name || 'Produit'} (ID: ${p.id})`).join(', ');
             const discounts = data.discounts || 'Aucun';
             
             // 1. Example Link
-            let exampleUrl = `https://${domain}/cart/${data.mainVariantId}:1`;
+            let cartItems = data.products.filter(p => p.id).map(p => `${p.id}:${p.qty || 1}`).join(',');
+            let exampleUrl = `https://${domain}/cart/${cartItems}`;
+            
             const params = [];
             if (data.discounts) params.push(`discount=${data.discounts.split(',')[0].trim()}`);
             if (data.emailEnabled) params.push('checkout[email]=example@email.com');
@@ -224,7 +269,7 @@ Crée une page HTML + JavaScript permettant de générer dynamiquement des liens
 
 CONFIGURATION :
 Domaine : ${domain}
-Variants disponibles : ${allVariants}
+Produits & Variants disponibles : ${productStrings}
 Codes promo : ${discounts}
 Email activé : ${data.emailEnabled ? 'OUI' : 'NON'}
 Adresse activée : ${data.addressEnabled ? 'OUI' : 'NON'}
@@ -261,14 +306,17 @@ Ton objectif est de générer une URL de checkout à partir d’un panier dynami
 # CONFIGURATION
 
 Domaine : ${domain}
-Variants disponibles : ${allVariants}
+
+Produits disponibles (utiliser les IDs correspondants) :
+${productStrings}
+
 Codes promo autorisés : ${discounts}
 
 ---
 
 # RÈGLES
 
-- Utiliser uniquement des variant_id
+- Utiliser uniquement des variant_id numériques
 - Format : /cart/variant:qty,variant:qty
 - Paramètres optionnels : discount, checkout[email], checkout[shipping_address]
 
@@ -291,8 +339,8 @@ Retourner uniquement l’URL finale
 
 # EXEMPLE
 
-Panier : [{ "variant_id": "${data.mainVariantId}", "quantity": 1 }]
-Résultat : https://${domain}/cart/${data.mainVariantId}:1
+Panier : [{ "variant_id": "${data.products[0].id}", "quantity": 1 }]
+Résultat : https://${domain}/cart/${data.products[0].id}:1
 \`;`;
 
             results.innerHTML = `
@@ -302,7 +350,7 @@ Résultat : https://${domain}/cart/${data.mainVariantId}:1
                         <h3 class="text-xl font-bold mb-4 flex items-center">
                             <span class="mr-2">🔗</span> Lien Checkout Exemple
                         </h3>
-                        <div class="bg-indigo-900/40 p-4 rounded-xl font-mono text-sm break-all flex justify-between items-center">
+                        <div class="bg-indigo-900/40 p-4 rounded-xl font-mono text-xs sm:text-sm break-all flex justify-between items-center">
                             <span>${exampleUrl}</span>
                             <button onclick="copyText('${exampleUrl}')" class="ml-4 hover:text-indigo-200"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg></button>
                         </div>
@@ -323,7 +371,7 @@ Résultat : https://${domain}/cart/${data.mainVariantId}:1
                     <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-xl font-bold text-slate-900 flex items-center">
-                                <span class="mr-2">🔥</span> Prompt Interne (Injected)
+                                <span class="mr-2">🔥</span> Prompt Interne (Injecté)
                             </h3>
                             <button onclick="copyElement('subPromptPre')" class="text-slate-400 hover:text-indigo-600 transition-colors">Copier</button>
                         </div>
